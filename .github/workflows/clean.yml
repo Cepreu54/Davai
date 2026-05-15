@@ -20,23 +20,22 @@ jobs:
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            # Скачиваем и удаляем бинарные символы (оставляем только печатные символы, включая латиницу, цифры, : / ? = @ . % _ - + #)
-            DATA=$(curl -s --connect-timeout 10 "$URL" 2>/dev/null | tr -cd '[:print:]\n' || echo "")
+            # Скачиваем и очищаем от бинарного мусора
+            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | strings | grep '^vless://' || echo "")
             
             if [ -n "$DATA" ]; then
-              # Фильтр: только строки, начинающиеся с vless://
-              # Убираем Россию, оставляем хорошие страны
-              FILTERED=$(echo "$DATA" | grep '^vless://' | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
-              COUNT=$(echo "$FILTERED" | grep -c '^vless://' 2>/dev/null || echo 0)
+              # Фильтр: убираем Россию, оставляем хорошие страны
+              FILTERED=$(echo "$DATA" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
+              COUNT=$(echo "$FILTERED" | wc -l)
               echo "  -> Found $COUNT vless servers"
               ALL_SERVERS="$ALL_SERVERS"$'\n'"$FILTERED"
             else
-              echo "  -> Failed to download, skipping"
+              echo "  -> No vless servers found"
             fi
           done
 
-          # Убираем пустые строки и дубликаты, удаляем бинарный мусор
-          echo "$ALL_SERVERS" | grep '^vless://' | grep -v '^$' | sort -u | tr -cd '[:print:]\n' > all_servers.txt
+          # Убираем пустые строки и дубликаты
+          echo "$ALL_SERVERS" | grep -v '^$' | sort -u > all_servers.txt
 
       - name: Split into 26 files
         run: |
@@ -44,37 +43,31 @@ jobs:
           echo "Total unique vless servers: $TOTAL"
 
           if [ "$TOTAL" -eq 0 ]; then
-            echo "No servers found! Creating empty files."
             for i in {1..26}; do
-              touch "clean$i.txt"
+              echo "" > "clean$i.txt"
             done
           else
-            # Перемешиваем строки
+            # Перемешиваем
             shuf all_servers.txt > shuffled.txt
 
-            # Количество серверов на файл
+            # Серверов на файл
             PER_FILE=$(( (TOTAL + 25) / 26 ))
-            if [ "$PER_FILE" -lt 1 ]; then
-              PER_FILE=1
-            fi
 
-            # Разбиваем на 26 файлов
+            # Разбиваем
             split -l $PER_FILE -d shuffled.txt part_
 
-            # Переименовываем в clean1.txt ... clean26.txt
             for i in {0..25}; do
               FILE_NUM=$((i+1))
               if [ -f "part_$i" ]; then
-                cat "part_$i" > "clean$FILE_NUM.txt"
+                cp "part_$i" "clean$FILE_NUM.txt"
                 rm "part_$i"
               else
-                touch "clean$FILE_NUM.txt"
+                echo "" > "clean$FILE_NUM.txt"
               fi
             done
 
             rm -f shuffled.txt
           fi
-
           rm -f all_servers.txt
 
       - name: Commit and push
