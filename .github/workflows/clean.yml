@@ -16,7 +16,7 @@ jobs:
         run: |
           ALL_SERVERS=""
 
-          for i in 1 2 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+          for i in 1 2 3 4 5 6 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
@@ -36,7 +36,7 @@ jobs:
               COUNT=$(echo "$FILTERED" | wc -l)
               echo "  -> Added $COUNT servers after country filter"
             else
-              echo "  -> No servers left after country filter (all were filtered out)"
+              echo "  -> No servers left after country filter"
             fi
           done
 
@@ -73,121 +73,10 @@ jobs:
           fi
           rm -f all_servers.txt
 
-      - name: Commit and push with token
+      - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add clean*.txt
           git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main            else
-              echo "  -> No servers after country filter"
-            fi
-          done
-
-          if [ -s all_servers_temp.txt ]; then
-            sort -u all_servers_temp.txt > all_servers.txt
-            TOTAL=$(wc -l < all_servers.txt)
-            echo "Total unique vless servers: $TOTAL"
-          else
-            echo "No servers found at all"
-            touch all_servers.txt
-          fi
-          rm -f all_servers_temp.txt
-
-      - name: Split into 26 files
-        run: |
-          TOTAL=$(wc -l < all_servers.txt)
-          echo "Total: $TOTAL"
-          if [ "$TOTAL" -eq 0 ]; then
-            for i in {1..26}; do echo "" > "clean$i.txt"; done
-          else
-            shuf all_servers.txt > shuffled.txt
-            PER_FILE=$(( (TOTAL + 25) / 26 ))
-            split -l $PER_FILE -d shuffled.txt part_
-            for i in {0..25}; do
-              FILE_NUM=$((i+1))
-              if [ -f "part_$i" ]; then
-                cp "part_$i" "clean$FILE_NUM.txt"
-                rm "part_$i"
-              else
-                echo "" > "clean$FILE_NUM.txt"
-              fi
-            done
-            rm -f shuffled.txt
-          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main              else
-                echo "" > "clean$FILE_NUM.txt"
-              fi
-            done
-            rm -f shuffled.txt
-          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main                echo "" > "clean$FILE_NUM.txt"
-              fi
-            done
-            rm -f shuffled.txt
-          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main              else
-                echo "" > "clean$FILE_NUM.txt"
-              fi
-            done
-            rm -f shuffled.txt
-          fi
-          rm -f all_servers.txt
-
-      - name: Commit and push with token
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add clean*.txt
-          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main
+          git push origin main
