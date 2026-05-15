@@ -14,34 +14,34 @@ jobs:
 
       - name: Download and filter all sources
         run: |
-          # Список ссылок AvenCores (1-26)
           ALL_SERVERS=""
 
           for i in {1..26}; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            # Пробуем скачать, если ошибка — пропускаем
-            DATA=$(curl -s --connect-timeout 10 "$URL" 2>/dev/null || echo "")
+            # Скачиваем и удаляем бинарные символы (оставляем только печатные символы, включая латиницу, цифры, : / ? = @ . % _ - + #)
+            DATA=$(curl -s --connect-timeout 10 "$URL" 2>/dev/null | tr -cd '[:print:]\n' || echo "")
             
             if [ -n "$DATA" ]; then
-              # Фильтр: только vless:// + убираем Россию + оставляем хорошие страны
+              # Фильтр: только строки, начинающиеся с vless://
+              # Убираем Россию, оставляем хорошие страны
               FILTERED=$(echo "$DATA" | grep '^vless://' | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
-              COUNT=$(echo "$FILTERED" | grep -c '^vless://' || echo 0)
-              echo "  -> Found $COUNT vless servers (after filter)"
+              COUNT=$(echo "$FILTERED" | grep -c '^vless://' 2>/dev/null || echo 0)
+              echo "  -> Found $COUNT vless servers"
               ALL_SERVERS="$ALL_SERVERS"$'\n'"$FILTERED"
             else
               echo "  -> Failed to download, skipping"
             fi
           done
 
-          # Убираем пустые строки и дубликаты
-          echo "$ALL_SERVERS" | grep '^vless://' | grep -v '^$' | sort -u > all_servers.txt
+          # Убираем пустые строки и дубликаты, удаляем бинарный мусор
+          echo "$ALL_SERVERS" | grep '^vless://' | grep -v '^$' | sort -u | tr -cd '[:print:]\n' > all_servers.txt
 
       - name: Split into 26 files
         run: |
           TOTAL=$(wc -l < all_servers.txt)
-          echo "Total unique vless servers after filter: $TOTAL"
+          echo "Total unique vless servers: $TOTAL"
 
           if [ "$TOTAL" -eq 0 ]; then
             echo "No servers found! Creating empty files."
@@ -65,14 +65,14 @@ jobs:
             for i in {0..25}; do
               FILE_NUM=$((i+1))
               if [ -f "part_$i" ]; then
-                mv "part_$i" "clean$FILE_NUM.txt"
+                cat "part_$i" > "clean$FILE_NUM.txt"
+                rm "part_$i"
               else
                 touch "clean$FILE_NUM.txt"
               fi
             done
 
-            # Удаляем временные файлы
-            rm -f part_* shuffled.txt
+            rm -f shuffled.txt
           fi
 
           rm -f all_servers.txt
