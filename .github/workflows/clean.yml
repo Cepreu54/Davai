@@ -20,21 +20,39 @@ jobs:
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            # Скачиваем, убираем бинарный мусор, оставляем только vless:// строки
-            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | tr -cd '[:print:]\n' | grep '^vless://' || echo "")
+            # Скачиваем в файл, чтобы избежать проблем с pipe
+            curl -sL --connect-timeout 10 "$URL" -o temp_source.txt 2>/dev/null || echo "Download failed"
             
-            if [ -n "$DATA" ]; then
-              # Убираем Россию, оставляем хорошие страны
-              FILTERED=$(echo "$DATA" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
-              COUNT=$(echo "$FILTERED" | wc -l)
-              echo "  -> Found $COUNT vless servers"
-              ALL_SERVERS="$ALL_SERVERS"$'\n'"$FILTERED"
+            # Проверяем, что файл не пустой и содержит vless
+            if [ -s temp_source.txt ]; then
+              # Очищаем от бинарного мусора и извлекаем vless
+              cat temp_source.txt | tr -cd '[:print:]\n' | grep '^vless://' > temp_filtered.txt
+              COUNT=$(wc -l < temp_filtered.txt)
+              
+              if [ "$COUNT" -gt 0 ]; then
+                # Убираем Россию, оставляем хорошие страны
+                cat temp_filtered.txt | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' >> all_servers_temp.txt
+                echo "  -> Added $(grep -c '^vless://' temp_filtered.txt | head -1) servers after filter"
+              else
+                echo "  -> No vless servers found"
+              fi
+              rm -f temp_filtered.txt
             else
-              echo "  -> No vless servers found"
+              echo "  -> Failed to download or empty file"
             fi
+            rm -f temp_source.txt
           done
 
-          echo "$ALL_SERVERS" | grep -v '^$' | sort -u > all_servers.txt
+          # Обработка итогового файла
+          if [ -s all_servers_temp.txt ]; then
+            sort -u all_servers_temp.txt > all_servers.txt
+            TOTAL=$(wc -l < all_servers.txt)
+            echo "Total unique vless servers: $TOTAL"
+          else
+            echo "No servers found at all!"
+            touch all_servers.txt
+          fi
+          rm -f all_servers_temp.txt
 
       - name: Split into 26 files
         run: |
