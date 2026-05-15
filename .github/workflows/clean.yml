@@ -14,56 +14,37 @@ jobs:
 
       - name: Download and filter all sources
         run: |
-          # Список всех ссылок
-          URLs=(
-            # Источники AvenCores (1-26)
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/1.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/2.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/3.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/4.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/5.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/6.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/7.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/8.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/9.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/10.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/11.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/12.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/13.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/14.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/15.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/16.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/17.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/18.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/19.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/20.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/21.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/22.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/23.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/24.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/25.txt"
-            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/26.txt"
-          )
-
+          # Список ссылок AvenCores (1-26)
           ALL_SERVERS=""
 
-          for URL in "${URLs[@]}"; do
+          for i in {1..26}; do
+            URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
-            # Фильтр: только vless:// + убираем Россию + оставляем хорошие страны
-            NEW=$(curl -s "$URL" | grep '^vless://' | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
-            ALL_SERVERS="$ALL_SERVERS"$'\n'"$NEW"
+            
+            # Пробуем скачать, если ошибка — пропускаем
+            DATA=$(curl -s --connect-timeout 10 "$URL" 2>/dev/null || echo "")
+            
+            if [ -n "$DATA" ]; then
+              # Фильтр: только vless:// + убираем Россию + оставляем хорошие страны
+              FILTERED=$(echo "$DATA" | grep '^vless://' | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
+              COUNT=$(echo "$FILTERED" | grep -c '^vless://' || echo 0)
+              echo "  -> Found $COUNT vless servers (after filter)"
+              ALL_SERVERS="$ALL_SERVERS"$'\n'"$FILTERED"
+            else
+              echo "  -> Failed to download, skipping"
+            fi
           done
 
-          # Убираем пустые строки и дубликаты, оставляем только vless
+          # Убираем пустые строки и дубликаты
           echo "$ALL_SERVERS" | grep '^vless://' | grep -v '^$' | sort -u > all_servers.txt
 
       - name: Split into 26 files
         run: |
           TOTAL=$(wc -l < all_servers.txt)
-          echo "Total vless servers after filter: $TOTAL"
+          echo "Total unique vless servers after filter: $TOTAL"
 
           if [ "$TOTAL" -eq 0 ]; then
-            echo "No servers! Creating empty files."
+            echo "No servers found! Creating empty files."
             for i in {1..26}; do
               touch "clean$i.txt"
             done
