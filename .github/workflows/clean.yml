@@ -19,8 +19,12 @@ jobs:
           for i in {1..26}; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
-            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | strings | grep '^vless://' || echo "")
+            
+            # Скачиваем, убираем бинарный мусор, оставляем только vless:// строки
+            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | tr -cd '[:print:]\n' | grep '^vless://' || echo "")
+            
             if [ -n "$DATA" ]; then
+              # Убираем Россию, оставляем хорошие страны
               FILTERED=$(echo "$DATA" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
               COUNT=$(echo "$FILTERED" | wc -l)
               echo "  -> Found $COUNT vless servers"
