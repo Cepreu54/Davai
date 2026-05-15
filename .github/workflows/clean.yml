@@ -20,30 +20,29 @@ jobs:
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            # Скачиваем в файл, чтобы избежать проблем с pipe
-            curl -sL --connect-timeout 10 "$URL" -o temp_source.txt 2>/dev/null || echo "Download failed"
+            # Пробуем скачать, если ошибка — пропускаем
+            HTTP_CODE=$(curl -sL --connect-timeout 10 -o temp.txt -w "%{http_code}" "$URL" 2>/dev/null)
             
-            # Проверяем, что файл не пустой и содержит vless
-            if [ -s temp_source.txt ]; then
-              # Очищаем от бинарного мусора и извлекаем vless
-              cat temp_source.txt | tr -cd '[:print:]\n' | grep '^vless://' > temp_filtered.txt
-              COUNT=$(wc -l < temp_filtered.txt)
+            if [ "$HTTP_CODE" = "200" ] && [ -s temp.txt ]; then
+              # Очищаем от бинарного мусора и берём только vless://
+              cat temp.txt | tr -cd '[:print:]\n' | grep '^vless://' > filtered.txt
               
+              COUNT=$(wc -l < filtered.txt 2>/dev/null || echo 0)
               if [ "$COUNT" -gt 0 ]; then
-                # Убираем Россию, оставляем хорошие страны
-                cat temp_filtered.txt | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' >> all_servers_temp.txt
-                echo "  -> Added $(grep -c '^vless://' temp_filtered.txt | head -1) servers after filter"
+                # Фильтр по странам (убираем Россию, оставляем хорошие)
+                cat filtered.txt | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' >> all_servers_temp.txt
+                echo "  -> Added servers"
               else
                 echo "  -> No vless servers found"
               fi
-              rm -f temp_filtered.txt
+              rm -f filtered.txt
             else
-              echo "  -> Failed to download or empty file"
+              echo "  -> Skipping (HTTP $HTTP_CODE or empty)"
             fi
-            rm -f temp_source.txt
+            rm -f temp.txt
           done
 
-          # Обработка итогового файла
+          # Обработка итогов
           if [ -s all_servers_temp.txt ]; then
             sort -u all_servers_temp.txt > all_servers.txt
             TOTAL=$(wc -l < all_servers.txt)
@@ -70,6 +69,20 @@ jobs:
                 cp "part_$i" "clean$FILE_NUM.txt"
                 rm "part_$i"
               else
+                echo "" > "clean$FILE_NUM.txt"
+              fi
+            done
+            rm -f shuffled.txt
+          fi
+          rm -f all_servers.txt
+
+      - name: Commit and push with token
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add clean*.txt
+          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
+          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main              else
                 echo "" > "clean$FILE_NUM.txt"
               fi
             done
