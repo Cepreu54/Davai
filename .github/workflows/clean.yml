@@ -1,4 +1,4 @@
-name: Filter Blacklist Servers
+name: Multi-Source Filter & Shuffle (Only VLESS)
 
 on:
   schedule:
@@ -6,26 +6,100 @@ on:
   workflow_dispatch:
 
 jobs:
-  filter:
+  process:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Download blacklist and keep only nearby countries
+      - name: Download and filter all sources
         run: |
-          curl -s "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt" | \
-          grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' > clean.txt
+          # Список всех ссылок
+          URLs=(
+            # Источники AvenCores (1-26)
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/1.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/2.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/3.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/4.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/5.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/6.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/7.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/8.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/9.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/10.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/11.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/12.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/13.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/14.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/15.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/16.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/17.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/18.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/19.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/20.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/21.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/22.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/23.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/24.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/25.txt"
+            "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/26.txt"
+          )
 
-      - name: Count servers
+          ALL_SERVERS=""
+
+          for URL in "${URLs[@]}"; do
+            echo "Processing: $URL"
+            # Фильтр: только vless:// + убираем Россию + оставляем хорошие страны
+            NEW=$(curl -s "$URL" | grep '^vless://' | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
+            ALL_SERVERS="$ALL_SERVERS"$'\n'"$NEW"
+          done
+
+          # Убираем пустые строки и дубликаты, оставляем только vless
+          echo "$ALL_SERVERS" | grep '^vless://' | grep -v '^$' | sort -u > all_servers.txt
+
+      - name: Split into 26 files
         run: |
-          count=$(wc -l < clean.txt)
-          echo "✅ Оставлено серверов из ближней Европы: $count"
+          TOTAL=$(wc -l < all_servers.txt)
+          echo "Total vless servers after filter: $TOTAL"
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "No servers! Creating empty files."
+            for i in {1..26}; do
+              touch "clean$i.txt"
+            done
+          else
+            # Перемешиваем строки
+            shuf all_servers.txt > shuffled.txt
+
+            # Количество серверов на файл
+            PER_FILE=$(( (TOTAL + 25) / 26 ))
+            if [ "$PER_FILE" -lt 1 ]; then
+              PER_FILE=1
+            fi
+
+            # Разбиваем на 26 файлов
+            split -l $PER_FILE -d shuffled.txt part_
+
+            # Переименовываем в clean1.txt ... clean26.txt
+            for i in {0..25}; do
+              FILE_NUM=$((i+1))
+              if [ -f "part_$i" ]; then
+                mv "part_$i" "clean$FILE_NUM.txt"
+              else
+                touch "clean$FILE_NUM.txt"
+              fi
+            done
+
+            # Удаляем временные файлы
+            rm -f part_* shuffled.txt
+          fi
+
+          rm -f all_servers.txt
 
       - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add clean.txt
-          git diff --staged --quiet || git commit -m "Auto-update clean servers $(date +'%Y-%m-%d %H:%M:%S')"
+          git add clean*.txt
+          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
           git push
