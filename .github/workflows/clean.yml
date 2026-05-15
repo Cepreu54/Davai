@@ -15,30 +15,29 @@ jobs:
       - name: Download and filter all sources
         run: |
           ALL_SERVERS=""
+          
+          # Убедимся, что perl установлен (должен быть)
+          which perl
 
-          # Рабочие ссылки (без 3,5,8)
-          for i in 1 2 4 6 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+          # Список проверенных ссылок (без 3,5,6,8)
+          for i in 1 2 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            curl -sL --connect-timeout 10 "$URL" -o temp.txt 2>/dev/null
+            # Скачиваем и очищаем от бинарного мусора через perl
+            curl -sL --connect-timeout 10 "$URL" 2>/dev/null | perl -pe 's/[^[:print:]\n]//g' | grep '^vless://' > filtered.txt
             
-            if [ -s temp.txt ]; then
-              cat temp.txt | tr -cd '[:print:]\n' | grep '^vless://' > filtered.txt
-              
-              if [ -s filtered.txt ]; then
-                cat filtered.txt | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' >> all_servers_temp.txt
-                echo "  -> Added servers"
-              else
-                echo "  -> No vless servers"
-              fi
-              rm -f filtered.txt
+            if [ -s filtered.txt ]; then
+              # Применяем фильтр стран
+              cat filtered.txt | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' >> all_servers_temp.txt
+              echo "  -> Added servers"
             else
-              echo "  -> Download failed"
+              echo "  -> No vless servers found"
             fi
-            rm -f temp.txt
+            rm -f filtered.txt
           done
 
+          # Уникальные сервера
           if [ -s all_servers_temp.txt ]; then
             sort -u all_servers_temp.txt > all_servers.txt
             TOTAL=$(wc -l < all_servers.txt)
@@ -70,6 +69,15 @@ jobs:
             done
             rm -f shuffled.txt
           fi
+          rm -f all_servers.txt
+
+      - name: Commit and push with token
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add clean*.txt
+          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
+          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main          fi
           rm -f all_servers.txt
 
       - name: Commit and push with token
