@@ -16,25 +16,70 @@ jobs:
         run: |
           ALL_SERVERS=""
 
-          for i in 1 2 4 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+          for i in 1 2 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep '^vless://')
+            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep '^vless://' || true)
             
             if [ -z "$DATA" ]; then
               echo "  -> No vless servers, skipping"
               continue
             fi
             
-            CLEANED=$(echo "$DATA" | perl -pe 's/[^[:print:]\n]//g')
+            CLEANED=$(echo "$DATA" | perl -pe 's/[^[:print:]\n]//g' 2>/dev/null || true)
             
-            FILTERED=$(echo "$CLEANED" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9')
+            FILTERED=$(echo "$CLEANED" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' || true)
             
             if [ -n "$FILTERED" ]; then
               echo "$FILTERED" >> all_servers_temp.txt
-              echo "  -> Added $(echo "$FILTERED" | wc -l) servers"
+              COUNT=$(echo "$FILTERED" | wc -l)
+              echo "  -> Added $COUNT servers after country filter"
             else
+              echo "  -> No servers left after country filter (all were filtered out)"
+            fi
+          done
+
+          if [ -s all_servers_temp.txt ]; then
+            sort -u all_servers_temp.txt > all_servers.txt
+            TOTAL=$(wc -l < all_servers.txt)
+            echo "Total unique vless servers: $TOTAL"
+          else
+            echo "No servers found at all"
+            touch all_servers.txt
+          fi
+          rm -f all_servers_temp.txt
+
+      - name: Split into 26 files
+        run: |
+          TOTAL=$(wc -l < all_servers.txt)
+          echo "Total: $TOTAL"
+          if [ "$TOTAL" -eq 0 ]; then
+            for i in {1..26}; do echo "" > "clean$i.txt"; done
+          else
+            shuf all_servers.txt > shuffled.txt
+            PER_FILE=$(( (TOTAL + 25) / 26 ))
+            split -l $PER_FILE -d shuffled.txt part_
+            for i in {0..25}; do
+              FILE_NUM=$((i+1))
+              if [ -f "part_$i" ]; then
+                cp "part_$i" "clean$FILE_NUM.txt"
+                rm "part_$i"
+              else
+                echo "" > "clean$FILE_NUM.txt"
+              fi
+            done
+            rm -f shuffled.txt
+          fi
+          rm -f all_servers.txt
+
+      - name: Commit and push with token
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add clean*.txt
+          git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
+          git push https://Cepreu54:${{ secrets.GH_TOKEN }}@github.com/Cepreu54/Davai.git main            else
               echo "  -> No servers after country filter"
             fi
           done
