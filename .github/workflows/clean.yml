@@ -86,7 +86,7 @@ jobs:
             shuf all_servers.txt > shuffled.txt
             
             # Разбиваем по 200 строк
-            split -l 200 -d shuffled.txt part_
+            split -l 500 -d shuffled.txt part_
             
             # Переименовываем в clean1.txt, clean2.txt и т.д.
             FILE_NUM=1
