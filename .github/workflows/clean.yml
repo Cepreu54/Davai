@@ -1,4 +1,4 @@
-name: Multi-Source Filter & Shuffle (VLESS + Trojan)
+name: Multi-Source Filter & Shuffle (VLESS + Trojan-REALITY)
 
 on:
   schedule:
@@ -20,22 +20,26 @@ jobs:
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep -E '^(vless://|trojan://)' || true)
+            # Берём все VLESS и Trojan только с security=reality
+            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep -E '^(vless://)' || true)
+            TROJAN_REALITY=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep -E '^(trojan://)' | grep 'security=reality' || true)
             
-            if [ -z "$DATA" ]; then
-              echo "  -> No vless/trojan servers, skipping"
+            DATA="${DATA}"$'\n'"${TROJAN_REALITY}"
+            
+            if [ -z "$(echo "$DATA" | grep -E '^(vless://|trojan://)' || true)" ]; then
+              echo "  -> No valid servers, skipping"
               continue
             fi
             
             CLEANED=$(echo "$DATA" | perl -pe 's/[^[:print:]\n]//g' 2>/dev/null || true)
             
-            # Исключаем российские серверы, оставляем только нужные страны
+            # Фильтр стран: исключаем Россию, оставляем нужные
             FILTERED=$(echo "$CLEANED" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' || true)
             
             if [ -n "$FILTERED" ]; then
               echo "$FILTERED" >> all_servers_temp.txt
               COUNT=$(echo "$FILTERED" | wc -l)
-              echo "  -> Added $COUNT servers"
+              echo "  -> Added $COUNT servers (VLESS + Trojan-REALITY)"
             else
               echo "  -> No servers after country filter"
             fi
@@ -44,7 +48,7 @@ jobs:
           if [ -s all_servers_temp.txt ]; then
             sort -u all_servers_temp.txt > all_servers.txt
             TOTAL=$(wc -l < all_servers.txt)
-            echo "Total unique servers (VLESS+Trojan): $TOTAL"
+            echo "Total unique servers (VLESS + Trojan-REALITY): $TOTAL"
           else
             echo "No servers found at all"
             touch all_servers.txt
