@@ -1,4 +1,4 @@
-name: Multi-Source Filter & Shuffle (VLESS + Trojan-REALITY)
+name: Multi-Source Filter & Shuffle (VLESS + Trojan with security)
 
 on:
   schedule:
@@ -20,7 +20,6 @@ jobs:
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            # Скачиваем один раз
             RAW_DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null || true)
             
             if [ -z "$RAW_DATA" ]; then
@@ -28,17 +27,17 @@ jobs:
               continue
             fi
             
-            # Берём все VLESS
+            # Берём ВСЕ VLESS
             VLESS=$(echo "$RAW_DATA" | grep '^vless://' || true)
             
-            # Берём Trojan ТОЛЬКО с security=reality
-            TROJAN=$(echo "$RAW_DATA" | grep '^trojan://' | grep 'security=reality' || true)
+            # Берём Trojan ТОЛЬКО с security=tls ИЛИ security=reality
+            TROJAN=$(echo "$RAW_DATA" | grep '^trojan://' | grep -E 'security=(tls|reality)' || true)
             
             # Объединяем
-            COMBINED=$(echo -e "${VLESS}\n${TROJAN}" | grep -v '^$' || true)
-            
-            if [ -z "$COMBINED" ]; then
-              echo "  -> No vless or trojan-reality servers, skipping"
+            if [ -n "$VLESS" ] || [ -n "$TROJAN" ]; then
+              COMBINED=$(printf "%s\n%s\n" "$VLESS" "$TROJAN" | grep -v '^$' || true)
+            else
+              echo "  -> No servers found, skipping"
               continue
             fi
             
@@ -50,9 +49,9 @@ jobs:
             if [ -n "$FILTERED" ]; then
               echo "$FILTERED" >> all_servers_temp.txt
               COUNT=$(echo "$FILTERED" | wc -l)
-              VLESS_COUNT=$(echo "$FILTERED" | grep '^vless://' | wc -l || true)
-              TROJAN_COUNT=$(echo "$FILTERED" | grep '^trojan://' | wc -l || true)
-              echo "  -> Added $COUNT servers (VLESS: $VLESS_COUNT, Trojan-REALITY: $TROJAN_COUNT)"
+              VLESS_COUNT=$(echo "$FILTERED" | grep -c '^vless://' 2>/dev/null || echo "0")
+              TROJAN_COUNT=$(echo "$FILTERED" | grep -c '^trojan://' 2>/dev/null || echo "0")
+              echo "  -> Added $COUNT servers (VLESS: $VLESS_COUNT, Trojan with security: $TROJAN_COUNT)"
             else
               echo "  -> No servers after country filter"
             fi
@@ -61,9 +60,13 @@ jobs:
           if [ -s all_servers_temp.txt ]; then
             sort -u all_servers_temp.txt > all_servers.txt
             TOTAL=$(wc -l < all_servers.txt)
-            TOTAL_VLESS=$(grep '^vless://' all_servers.txt | wc -l || true)
-            TOTAL_TROJAN=$(grep '^trojan://' all_servers.txt | wc -l || true)
-            echo "Total unique: $TOTAL (VLESS: $TOTAL_VLESS, Trojan-REALITY: $TOTAL_TROJAN)"
+            TOTAL_VLESS=$(grep -c '^vless://' all_servers.txt 2>/dev/null || echo "0")
+            TOTAL_TROJAN=$(grep -c '^trojan://' all_servers.txt 2>/dev/null || echo "0")
+            echo "=========================================="
+            echo "Total unique servers: $TOTAL"
+            echo "  - VLESS: $TOTAL_VLESS"
+            echo "  - Trojan (with security=tls/reality): $TOTAL_TROJAN"
+            echo "=========================================="
           else
             echo "No servers found at all"
             touch all_servers.txt
@@ -73,7 +76,7 @@ jobs:
       - name: Split into files (200 servers each)
         run: |
           TOTAL=$(wc -l < all_servers.txt)
-          echo "Total: $TOTAL"
+          echo "Total servers to split: $TOTAL"
           
           if [ "$TOTAL" -eq 0 ]; then
             echo "No servers, creating empty clean1.txt"
@@ -90,6 +93,7 @@ jobs:
             for part in part_*; do
               if [ -f "$part" ]; then
                 mv "$part" "clean$FILE_NUM.txt"
+                echo "Created clean$FILE_NUM.txt with $(wc -l < clean$FILE_NUM.txt) servers"
                 FILE_NUM=$((FILE_NUM + 1))
               fi
             done
