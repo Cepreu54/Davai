@@ -1,4 +1,4 @@
-name: Multi-Source Filter & Shuffle (VLESS + Trojan with security)
+name: Multi-Source Filter & Shuffle (Only VLESS)
 
 on:
   schedule:
@@ -16,42 +16,25 @@ jobs:
         run: |
           ALL_SERVERS=""
 
-          for i in 1 2 3 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+          for i in 1 2 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
-            RAW_DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null || true)
+            DATA=$(curl -sL --connect-timeout 10 "$URL" 2>/dev/null | grep '^vless://' || true)
             
-            if [ -z "$RAW_DATA" ]; then
-              echo "  -> Download failed, skipping"
+            if [ -z "$DATA" ]; then
+              echo "  -> No vless servers, skipping"
               continue
             fi
             
-            # Берём ВСЕ VLESS
-            VLESS=$(echo "$RAW_DATA" | grep '^vless://' || true)
+            CLEANED=$(echo "$DATA" | perl -pe 's/[^[:print:]\n]//g' 2>/dev/null || true)
             
-            # Берём Trojan ТОЛЬКО с security=tls ИЛИ security=reality
-            TROJAN=$(echo "$RAW_DATA" | grep '^trojan://' | grep -E 'security=(tls|reality)' || true)
-            
-            # Объединяем
-            if [ -n "$VLESS" ] || [ -n "$TROJAN" ]; then
-              COMBINED=$(printf "%s\n%s\n" "$VLESS" "$TROJAN" | grep -v '^$' || true)
-            else
-              echo "  -> No servers found, skipping"
-              continue
-            fi
-            
-            CLEANED=$(echo "$COMBINED" | perl -pe 's/[^[:print:]\n]//g' 2>/dev/null || true)
-            
-            # Фильтр стран: исключаем Россию, оставляем нужные
             FILTERED=$(echo "$CLEANED" | grep -v '%F0%9F%87%B7%F0%9F%87%BA' | grep -E '%F0%9F%87%A9%F0%9F%87%AA|%F0%9F%87%B3%F0%9F%87%B1|%F0%9F%87%B5%F0%9F%87%B1|%F0%9F%87%AB%F0%9F%87%AE|%F0%9F%87%B8%F0%9F%87%AA|%F0%9F%87%B1%F0%9F%87%BB|%F0%9F%87%B1%F0%9F%87%B9' || true)
             
             if [ -n "$FILTERED" ]; then
               echo "$FILTERED" >> all_servers_temp.txt
               COUNT=$(echo "$FILTERED" | wc -l)
-              VLESS_COUNT=$(echo "$FILTERED" | grep -c '^vless://' 2>/dev/null || echo "0")
-              TROJAN_COUNT=$(echo "$FILTERED" | grep -c '^trojan://' 2>/dev/null || echo "0")
-              echo "  -> Added $COUNT servers (VLESS: $VLESS_COUNT, Trojan with security: $TROJAN_COUNT)"
+              echo "  -> Added $COUNT servers"
             else
               echo "  -> No servers after country filter"
             fi
@@ -60,23 +43,17 @@ jobs:
           if [ -s all_servers_temp.txt ]; then
             sort -u all_servers_temp.txt > all_servers.txt
             TOTAL=$(wc -l < all_servers.txt)
-            TOTAL_VLESS=$(grep -c '^vless://' all_servers.txt 2>/dev/null || echo "0")
-            TOTAL_TROJAN=$(grep -c '^trojan://' all_servers.txt 2>/dev/null || echo "0")
-            echo "=========================================="
-            echo "Total unique servers: $TOTAL"
-            echo "  - VLESS: $TOTAL_VLESS"
-            echo "  - Trojan (with security=tls/reality): $TOTAL_TROJAN"
-            echo "=========================================="
+            echo "Total unique vless servers: $TOTAL"
           else
             echo "No servers found at all"
             touch all_servers.txt
           fi
           rm -f all_servers_temp.txt
 
-      - name: Split into files (200 servers each)
+      - name: Split into files (100 servers each)
         run: |
           TOTAL=$(wc -l < all_servers.txt)
-          echo "Total servers to split: $TOTAL"
+          echo "Total: $TOTAL"
           
           if [ "$TOTAL" -eq 0 ]; then
             echo "No servers, creating empty clean1.txt"
@@ -85,15 +62,14 @@ jobs:
             # Перемешиваем
             shuf all_servers.txt > shuffled.txt
             
-            # Разбиваем по 200 строк
-            split -l 500 -d shuffled.txt part_
+            # Разбиваем по 100 строк (или меньше для последнего файла)
+            split -l 100 -d shuffled.txt part_
             
             # Переименовываем в clean1.txt, clean2.txt и т.д.
             FILE_NUM=1
             for part in part_*; do
               if [ -f "$part" ]; then
                 mv "$part" "clean$FILE_NUM.txt"
-                echo "Created clean$FILE_NUM.txt with $(wc -l < clean$FILE_NUM.txt) servers"
                 FILE_NUM=$((FILE_NUM + 1))
               fi
             done
@@ -108,4 +84,3 @@ jobs:
           git config user.email "github-actions@github.com"
           git add clean*.txt
           git diff --staged --quiet || git commit -m "Auto-update $(date +'%Y-%m-%d %H:%M:%S')"
-          git push origin main
