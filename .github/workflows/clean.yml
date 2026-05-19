@@ -62,7 +62,7 @@ jobs:
           else
             shuf all_servers.txt > shuffled.txt
             rm -f clean*.txt
-            split -l 100 -d shuffled.txt part_
+            split -l 4800 -d shuffled.txt part_
             
             FILE_NUM=1
             for part in part_*; do
