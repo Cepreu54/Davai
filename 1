@@ -1,0 +1,28 @@
+name: Clean up extra files (keep only 1-11)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Remove all clean files except 1-11
+        run: |
+          # Удаляем все clean файлы от 12 до 999
+          for i in {12..999}; do
+            if [ -f "clean$i.txt" ]; then
+              git rm "clean$i.txt"
+              echo "Removed clean$i.txt"
+            fi
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Remove extra clean files, keep only 1-11" || echo "Nothing to commit"
+          git push origin main
