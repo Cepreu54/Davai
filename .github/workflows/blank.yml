@@ -1,0 +1,27 @@
+name: Delete extra clean files (keep only 1-11)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Delete files from clean12.txt to clean500.txt
+        run: |
+          for i in {12..500}; do
+            if [ -f "clean$i.txt" ]; then
+              git rm "clean$i.txt"
+              echo "Deleted clean$i.txt"
+            fi
+          done
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Delete extra clean files (keep only 1-11)" || echo "No files to delete"
+          git push origin main
