@@ -16,7 +16,7 @@ jobs:
         run: |
           ALL_SERVERS=""
 
-          for i in 1 2 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
+          for i in 1 2 3 4 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do
             URL="https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/refs/heads/main/githubmirror/${i}.txt"
             echo "Processing: $URL"
             
